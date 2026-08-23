@@ -95,6 +95,30 @@ export async function screenWalletAddress(
     const text = await response.text();
     const body = text ? JSON.parse(text) : {};
     const identifications = Array.isArray(body.identifications) ? body.identifications : [];
+
+    if (!response.ok) {
+      const status: ComplianceStatus = shouldBlockOnUnavailable() ? "blocked" : "unavailable";
+      const message = `Chainalysis returned ${response.status}.`;
+      await logScreening({
+        merchantId,
+        address: normalizedAddress,
+        checkType,
+        status,
+        responseStatus: response.status,
+        responseBody: body,
+        errorMessage: message,
+      });
+      return {
+        provider: "chainalysis-sanctions",
+        address: normalizedAddress,
+        checkType,
+        status,
+        blocked: shouldBlockOnUnavailable(),
+        identifications: [],
+        message,
+      };
+    }
+
     const status: ComplianceStatus = identifications.length > 0 ? "blocked" : "clear";
     await logScreening({
       merchantId,
@@ -104,18 +128,6 @@ export async function screenWalletAddress(
       responseStatus: response.status,
       responseBody: body,
     });
-
-    if (!response.ok) {
-      return {
-        provider: "chainalysis-sanctions",
-        address: normalizedAddress,
-        checkType,
-        status: shouldBlockOnUnavailable() ? "blocked" : "unavailable",
-        blocked: shouldBlockOnUnavailable(),
-        identifications: [],
-        message: `Chainalysis returned ${response.status}.`,
-      };
-    }
 
     return {
       provider: "chainalysis-sanctions",
